@@ -1,0 +1,77 @@
+---
+title: "Assignment8"
+output: html_document
+---
+
+## Loading necessary packages
+```{r setup, include=FALSE}
+library(AppliedPredictiveModeling)
+library(caret)
+library(ElemStatLearn)
+library(pgmm)
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+library(gbm)
+library(forecast)
+library(e1071)
+library(elasticnet)
+library(lubridate)
+```
+
+## Callding the data and creating training/validating/test sets
+
+```{r}
+training = read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testing = read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+inTrain <- createDataPartition(training$classe,p = 0.6, list = FALSE)
+subTraining <- training[inTrain,]
+Validating  <- training[-inTrain,]
+```
+
+## remove variables that have low variance
+
+```{r}
+myDataNZV <- nearZeroVar(subTraining, saveMetrics=TRUE)
+sa <- subset(myDataNZV, zeroVar == TRUE | nzv == TRUE)
+subTraining <- subTraining[,!names(subTraining) %in% rownames(sa)]
+subTraining <- subTraining[c(-1)]
+```
+
+## Filter out variables that have too much NAs. Threshold = 0.6
+```{r}
+index <- c()
+for(i in 1:length(subTraining)){
+  if(sum(is.na(subTraining[,i])) / nrow(subTraining) >= 0.6){
+    index <- c(index,i)
+  }
+}
+subTraining <- subTraining[,-index]
+valind <- colnames(subTraining)
+testind <- colnames(subTraining[, -58]) #classe column removed
+Validating <- Validating[,valind]
+testing <- testing[,testind]
+```
+
+## Ensure that the variables are in same type.
+```{r}
+testing <- rbind(subTraining[1, -58] , testing) # 1 was chosen randomly. could be any row essentially
+testing <- testing[-1,]
+```
+
+## Test Random Forest and SVM using the validation sets
+```{r}
+model_RF <- randomForest(classe ~. , data = subTraining)
+pred_rf <- predict(model_RF, Validating, type = "class")
+confusionMatrix(pred_rf, Validating$classe)
+
+model_SVM <- svm(classe ~., data = subTraining)
+pred_svm <- predict(model_SVM, Validating, type = "class")
+confusionMatrix(pred_svm, Validating$classe)
+```
+
+## Predict using the random forest model
+```{r}
+predict(model_RF,testing,type = "class")
+```
