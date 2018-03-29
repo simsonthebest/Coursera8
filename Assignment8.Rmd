@@ -1,0 +1,60 @@
+##### Assignemtn 8 
+library(AppliedPredictiveModeling)
+library(caret)
+library(ElemStatLearn)
+library(pgmm)
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+library(gbm)
+library(forecast)
+library(e1071)
+library(elasticnet)
+library(lubridate)
+setwd("C:/Users/Harry Ahn/Documents/Duke/Coursera/Coursera8")
+
+## Calling the data. Creating Train/Validation/Test sets
+training = read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testing = read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+inTrain <- createDataPartition(training$classe,p = 0.6, list = FALSE)
+subTraining <- training[inTrain,]
+Validating  <- training[-inTrain,]
+
+# Find variables that have near 0 variance
+myDataNZV <- nearZeroVar(subTraining, saveMetrics=TRUE)
+sa <- subset(myDataNZV, zeroVar == TRUE | nzv == TRUE)
+subTraining <- subTraining[,!names(subTraining) %in% rownames(sa)]
+subTraining <- subTraining[c(-1)]
+
+
+# Filter out variables that have too much NAs. Threshold = 0.6
+index <- c()
+for(i in 1:length(subTraining)){
+  if(sum(is.na(subTraining[,i])) / nrow(subTraining) >= 0.6){
+    index <- c(index,i)
+  }
+}
+subTraining <- subTraining[,-index]
+
+#Do same processing to validation and test sets.
+valind <- colnames(subTraining)
+testind <- colnames(subTraining[, -58]) #classe column removed
+Validating <- Validating[,valind]
+testing <- testing[,testind]
+
+#Ensure that the variables are in same type.
+testing <- rbind(subTraining[1, -58] , testing) # 1 was chosen randomly. could be any row essentially
+testing <- testing[-1,]
+
+# Test RF and SVM 
+model_RF <- randomForest(classe ~. , data = subTraining)
+pred_rf <- predict(model_RF, Validating, type = "class")
+confusionMatrix(pred_rf, Validating$classe)
+
+model_SVM <- svm(classe ~., data = subTraining)
+pred_svm <- predict(model_SVM, Validating, type = "class")
+confusionMatrix(pred_svm, Validating$classe)
+
+# RF performs better than SVM.
+pred_testing <- predict(model_RF,testing,type = "class")
